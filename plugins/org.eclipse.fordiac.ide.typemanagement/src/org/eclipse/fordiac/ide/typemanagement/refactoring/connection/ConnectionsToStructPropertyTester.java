@@ -16,8 +16,6 @@ import org.eclipse.core.expressions.PropertyTester;
 import org.eclipse.fordiac.ide.model.libraryElement.DataConnection;
 import org.eclipse.fordiac.ide.model.libraryElement.FBNetworkElement;
 import org.eclipse.fordiac.ide.model.libraryElement.IInterfaceElement;
-import org.eclipse.fordiac.ide.model.libraryElement.ServiceInterfaceFBType;
-import org.eclipse.fordiac.ide.model.libraryElement.SubApp;
 import org.eclipse.fordiac.ide.model.libraryElement.VarDeclaration;
 import org.eclipse.gef.EditPart;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -62,8 +60,7 @@ public class ConnectionsToStructPropertyTester extends PropertyTester {
 				return false;
 			}
 		}
-		return src != null && !(src instanceof SubApp) && !(src.getType() instanceof ServiceInterfaceFBType)
-				&& dest != null && !(dest instanceof SubApp) && !(dest.getType() instanceof ServiceInterfaceFBType);
+		return true;
 	}
 
 	private static DataConnection checkCon(final Object sel) {
