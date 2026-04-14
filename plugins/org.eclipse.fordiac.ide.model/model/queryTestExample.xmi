@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<search:query
+    xmi:version="2.0"
+    xmlns:xmi="http://www.omg.org/XMI"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:search="org.eclipse.fordiac.ide.model.search"
+    xsi:schemaLocation="org.eclipse.fordiac.ide.model.search searchQuery.ecore">
+  <instance>
+    <Simple>
+      <pin>
+        <constraint
+            name="[$hmi$, REAL, whole_word]"
+            type="REAL"/>
+      </pin>
+      <attribute>
+        <contraint
+            name="RETAIN"/>
+      </attribute>
+    </Simple>
+    <Simple>
+      <pin>
+        <attribute>
+          <contraint
+              name="$hmi$"/>
+        </attribute>
+      </pin>
+      <attribute>
+        <contraint
+            name="$hmi$"/>
+      </attribute>
+    </Simple>
+  </instance>
+  <placeholder
+      key="hmi"
+      val="HMI"/>
+</search:query>

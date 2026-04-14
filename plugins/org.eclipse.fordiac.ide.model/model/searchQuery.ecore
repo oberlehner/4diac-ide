@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" name="search" nsURI="org.eclipse.fordiac.ide.model.search" nsPrefix="search">
+  <eClassifiers xsi:type="ecore:EClass" name="query">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="instance" eType="#//Instance"
+        containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="placeholder" upperBound="-1"
+        eType="#//Placeholder" containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="target" eType="#//target"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="types" eType="#//Type"
+        containment="true"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Instance">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="Simple" upperBound="-1"
+        eType="#//SimpleInstance" containment="true"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Type">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="simpleType" upperBound="-1"
+        eType="#//SimpleType"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="SimpleInstance">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="pin" upperBound="-1" eType="#//PIN"
+        containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="attribute" upperBound="-1"
+        eType="#//Attribute" containment="true"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="SimpleType">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="pin" eType="#//PIN"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="attribute" eType="#//Attribute"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Placeholder">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="key" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="val" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Constraint">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="type" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="comment" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="initVal" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString"/>
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="match" eType="#//match"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="target">
+    <eLiterals name="attribute"/>
+    <eLiterals name="var"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="PIN">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="constraint" eType="#//Constraint"
+        containment="true"/>
+    <eStructuralFeatures xsi:type="ecore:EReference" name="attribute" eType="#//Attribute"
+        containment="true"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Attribute">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="contraint" eType="#//Constraint"
+        containment="true"/>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="match">
+    <eLiterals name="case"/>
+    <eLiterals name="whole_word"/>
+    <eLiterals name="entire"/>
+    <eLiterals name="regex"/>
+  </eClassifiers>
+</ecore:EPackage>

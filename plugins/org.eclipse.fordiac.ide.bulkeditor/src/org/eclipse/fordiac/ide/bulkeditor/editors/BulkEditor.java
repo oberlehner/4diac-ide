@@ -18,6 +18,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -39,9 +40,25 @@ import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.SubMonitor;
+import org.eclipse.emf.common.command.BasicCommandStack;
 import org.eclipse.emf.common.util.URI;
+import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EPackage;
+import org.eclipse.emf.ecore.EReference;
+import org.eclipse.emf.ecore.provider.EcoreItemProviderAdapterFactory;
+import org.eclipse.emf.ecore.resource.Resource;
+import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.emf.ecore.xmi.impl.EcoreResourceFactoryImpl;
+import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
+import org.eclipse.emf.edit.domain.AdapterFactoryEditingDomain;
+import org.eclipse.emf.edit.provider.ComposedAdapterFactory;
+import org.eclipse.emf.edit.provider.ReflectiveItemProviderAdapterFactory;
+import org.eclipse.emf.edit.provider.resource.ResourceItemProviderAdapterFactory;
+import org.eclipse.emf.edit.ui.celleditor.AdapterFactoryTreeEditor;
+import org.eclipse.emf.edit.ui.provider.AdapterFactoryContentProvider;
+import org.eclipse.emf.edit.ui.provider.AdapterFactoryLabelProvider;
 import org.eclipse.fordiac.ide.application.utilities.SubAppHierarchyDialog;
 import org.eclipse.fordiac.ide.bulkeditor.Messages;
 import org.eclipse.fordiac.ide.bulkeditor.editors.BulkEditorSettings.ScopeOption;
@@ -85,6 +102,7 @@ import org.eclipse.jface.fieldassist.ContentProposalAdapter;
 import org.eclipse.jface.fieldassist.IContentProposalProvider;
 import org.eclipse.jface.fieldassist.TextContentAdapter;
 import org.eclipse.jface.layout.GridLayoutFactory;
+import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.widgets.WidgetFactory;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.SWT;
@@ -101,6 +119,7 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.Tree;
 import org.eclipse.ui.IActionBars;
 import org.eclipse.ui.IEditorInput;
 import org.eclipse.ui.IEditorSite;
@@ -117,6 +136,10 @@ import org.eclipse.ui.part.FileEditorInput;
 
 public class BulkEditor extends EditorPart implements CommandExecutor, CommandStackEventListener {
 	private static final String CONTEXT_ID = "org.eclipse.fordiac.ide.bulkeditor"; //$NON-NLS-1$
+	private static final String QUERY_GROUP_LABEL = "Query Prototype"; //$NON-NLS-1$
+	private static final String QUERY_ECORE_URI = "/org.eclipse.fordiac.ide.model/model/searchQuery.ecore"; //$NON-NLS-1$
+	private static final String QUERY_INSTANCE_URI = "memory:/queryPrototype.xmi"; //$NON-NLS-1$
+	private static final int QUERY_VIEWER_HEIGHT = 180;
 	private static final List<String> DEFAULT_LIST = List.of(Messages.Name, Messages.Type, Messages.Comment,
 			Messages.InitialValue);
 	private static final List<String> LIST_WITHOUT_VALUE = List.of(Messages.Name, Messages.Type, Messages.Comment);
@@ -133,6 +156,11 @@ public class BulkEditor extends EditorPart implements CommandExecutor, CommandSt
 	private List<URI> selectedSubApps = Collections.emptyList();
 	private Set<URI> searchScope;
 	private List<EObject> editableSearchResult;
+	private TreeViewer queryViewer;
+	private ComposedAdapterFactory queryAdapterFactory;
+	private AdapterFactoryEditingDomain queryEditingDomain;
+	private Resource queryResource;
+	private EObject queryRoot;
 
 	// Search For
 	private Combo modeSelectionDropDown;
@@ -240,6 +268,7 @@ public class BulkEditor extends EditorPart implements CommandExecutor, CommandSt
 		createSearchInGroup(pageBodyComposite);
 		createScopeGroup(pageBodyComposite);
 		createSearchButton(pageBodyComposite);
+		createQueryViewer(pageBodyComposite);
 		natTable = new BulkEditorNatTable(pageComposite, this, settings.modeSelection);
 
 		scrolledComposite.setMinSize(pageComposite.computeSize(SWT.DEFAULT, SWT.DEFAULT));
@@ -379,6 +408,117 @@ public class BulkEditor extends EditorPart implements CommandExecutor, CommandSt
 
 		searchInformation = WidgetFactory.label(SWT.NONE).create(composite);
 		searchInformation.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+	}
+
+	private void createQueryViewer(final Composite parent) {
+		final Group queryGroup = createCollapsibleGroup(parent, QUERY_GROUP_LABEL, null);
+		final Tree tree = new Tree(queryGroup, SWT.BORDER | SWT.H_SCROLL | SWT.V_SCROLL);
+		final GridData treeLayoutData = new GridData(SWT.FILL, SWT.FILL, true, true);
+		treeLayoutData.heightHint = QUERY_VIEWER_HEIGHT;
+		tree.setLayoutData(treeLayoutData);
+
+		queryViewer = new TreeViewer(tree);
+		queryViewer.setUseHashlookup(true);
+		queryViewer.setContentProvider(new AdapterFactoryContentProvider(getQueryAdapterFactory()));
+		queryViewer.setLabelProvider(new AdapterFactoryLabelProvider(getQueryAdapterFactory()));
+		queryViewer.setInput(getOrCreateQueryRoot());
+		new AdapterFactoryTreeEditor(queryViewer.getTree(), getQueryAdapterFactory());
+		queryViewer.expandAll();
+	}
+
+	private ComposedAdapterFactory getQueryAdapterFactory() {
+		if (queryAdapterFactory == null) {
+			queryAdapterFactory = new ComposedAdapterFactory(ComposedAdapterFactory.Descriptor.Registry.INSTANCE);
+			queryAdapterFactory.addAdapterFactory(new ResourceItemProviderAdapterFactory());
+			queryAdapterFactory.addAdapterFactory(new EcoreItemProviderAdapterFactory());
+			queryAdapterFactory.addAdapterFactory(new ReflectiveItemProviderAdapterFactory());
+		}
+		return queryAdapterFactory;
+	}
+
+	private EObject getOrCreateQueryRoot() {
+		if (queryRoot != null) {
+			return queryRoot;
+		}
+
+		final ResourceSet resourceSet = getOrCreateQueryEditingDomain().getResourceSet();
+		final URI uri = URI.createPlatformPluginURI(QUERY_ECORE_URI, true);
+		final Resource resource = resourceSet.getResource(uri, true);
+		final EPackage pkg = (EPackage) resource.getContents().get(0);
+
+		queryRoot = createPrototypeQueryRoot(pkg);
+		queryResource = resourceSet.createResource(URI.createURI(QUERY_INSTANCE_URI));
+		queryResource.getContents().add(queryRoot);
+		return queryRoot;
+	}
+
+	private AdapterFactoryEditingDomain getOrCreateQueryEditingDomain() {
+		if (queryEditingDomain != null) {
+			return queryEditingDomain;
+		}
+
+		queryEditingDomain = new AdapterFactoryEditingDomain(getQueryAdapterFactory(), new BasicCommandStack(),
+				new HashMap<>());
+		final ResourceSet resourceSet = queryEditingDomain.getResourceSet();
+		resourceSet.getResourceFactoryRegistry().getExtensionToFactoryMap().put("ecore",
+				new EcoreResourceFactoryImpl()); //$NON-NLS-1$
+		resourceSet.getResourceFactoryRegistry().getExtensionToFactoryMap().put("xmi",
+				new XMIResourceFactoryImpl()); //$NON-NLS-1$
+		return queryEditingDomain;
+	}
+
+	private EObject createPrototypeQueryRoot(final EPackage pkg) {
+		final EObject query = createDynamicObject(pkg, "query"); //$NON-NLS-1$
+		final EObject instance = createDynamicObject(pkg, "Instance"); //$NON-NLS-1$
+		addContainedChild(query, "instance", instance); //$NON-NLS-1$
+
+		final EObject simpleInstance = createDynamicObject(pkg, "SimpleInstance"); //$NON-NLS-1$
+		addContainedChild(instance, "Simple", simpleInstance); //$NON-NLS-1$
+
+		final EObject pin = createDynamicObject(pkg, "PIN"); //$NON-NLS-1$
+		addContainedChild(simpleInstance, "pin", pin); //$NON-NLS-1$
+
+		final EObject pinConstraint = createDynamicObject(pkg, "Constraint"); //$NON-NLS-1$
+		setAttributeValue(pinConstraint, "name", "PrototypePin"); //$NON-NLS-1$ //$NON-NLS-2$
+		setAttributeValue(pinConstraint, "type", "BOOL"); //$NON-NLS-1$ //$NON-NLS-2$
+		setAttributeValue(pinConstraint, "comment", "Tree node created dynamically"); //$NON-NLS-1$ //$NON-NLS-2$
+		addContainedChild(pin, "constraint", pinConstraint); //$NON-NLS-1$
+
+		final EObject attribute = createDynamicObject(pkg, "Attribute"); //$NON-NLS-1$
+		addContainedChild(pin, "attribute", attribute); //$NON-NLS-1$
+
+		final EObject attributeConstraint = createDynamicObject(pkg, "Constraint"); //$NON-NLS-1$
+		setAttributeValue(attributeConstraint, "name", "PrototypeAttribute"); //$NON-NLS-1$ //$NON-NLS-2$
+		setAttributeValue(attributeConstraint, "type", "STRING"); //$NON-NLS-1$ //$NON-NLS-2$
+		setAttributeValue(attributeConstraint, "initVal", "\"demo\""); //$NON-NLS-1$ //$NON-NLS-2$
+		addContainedChild(attribute, "contraint", attributeConstraint); //$NON-NLS-1$
+
+		final EObject placeholder = createDynamicObject(pkg, "Placeholder"); //$NON-NLS-1$
+		setAttributeValue(placeholder, "key", "project"); //$NON-NLS-1$ //$NON-NLS-2$
+		setAttributeValue(placeholder, "val", project != null ? project.getName() : "prototype"); //$NON-NLS-1$ //$NON-NLS-2$
+		addContainedChild(query, "placeholder", placeholder); //$NON-NLS-1$
+
+		return query;
+	}
+
+	private static EObject createDynamicObject(final EPackage pkg, final String classifierName) {
+		return pkg.getEFactoryInstance().create((EClass) pkg.getEClassifier(classifierName));
+	}
+
+	private static void setAttributeValue(final EObject object, final String featureName, final Object value) {
+		if (object.eClass().getEStructuralFeature(featureName) != null) {
+			object.eSet(object.eClass().getEStructuralFeature(featureName), value);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private static void addContainedChild(final EObject parent, final String featureName, final EObject child) {
+		final EReference reference = (EReference) parent.eClass().getEStructuralFeature(featureName);
+		if (reference.isMany()) {
+			((List<EObject>) parent.eGet(reference)).add(child);
+		} else {
+			parent.eSet(reference, child);
+		}
 	}
 
 	private void handleSearch(final SelectionEvent selectionevent1) {
@@ -848,6 +988,9 @@ public class BulkEditor extends EditorPart implements CommandExecutor, CommandSt
 		disconnectEditorInputs();
 		LibraryElementProvider.INSTANCE.removeLibraryElementStateListener(elementStateListener);
 		OperationHistoryFactory.getOperationHistory().removeOperationHistoryListener(operationContextUpdater);
+		if (queryAdapterFactory != null) {
+			queryAdapterFactory.dispose();
+		}
 		commandStack.dispose();
 		activationListener.dispose();
 		super.dispose();
